@@ -5,27 +5,21 @@ from .models import User
 
 @admin.register(User)
 class CustomUserAdmin(BaseUserAdmin):
-    # Поля для отображения в списке
-    list_display = ('email', 'phone', 'city', 'is_staff')
-    # По какому полю сортировать
+    list_display = ('email', 'first_name', 'last_name', 'phone', 'city', 'is_staff')
     ordering = ('email',)
-    # Поля для фильтрации справа
     list_filter = ('is_staff', 'is_superuser', 'is_active')
-    # Поля для редактирования пользователя
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        (_('Personal info'), {'fields': ('phone', 'city', 'avatar')}),
+        (_('Personal info'), {'fields': ('first_name', 'last_name', 'phone', 'city', 'avatar')}),
         (_('Permissions'), {
             'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
         }),
         (_('Important dates'), {'fields': ('last_login',)}),
     )
-    # Поля для создания нового пользователя
     add_fieldsets = (
         (None, {
             'classes': ('wide',),
             'fields': ('email', 'password1', 'password2'),
         }),
     )
-    # Поле поиска
-    search_fields = ('email', 'phone', 'city')
+    search_fields = ('email', 'first_name', 'last_name', 'phone', 'city')
