@@ -6,7 +6,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = '__all__'
 
-class UserSerializer(serializers.ModelSerializer):
+class UserFullSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
 
     class Meta:
@@ -29,3 +29,8 @@ class UserSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         instance.save()
         return instance
+
+class UserLimitedSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['id', 'email', 'phone', 'city', 'avatar']  # без пароля, фамилии, истории платежей
