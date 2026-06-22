@@ -1,8 +1,8 @@
-from rest_framework import viewsets, generics, permissions
+from rest_framework import viewsets, generics
 from rest_framework.permissions import IsAuthenticated
 from .models import Course, Lesson
 from .serializers import CourseSerializer, LessonSerializer
-from .permissions import IsModerator, IsOwner
+from .permissions import IsNotModerator, IsModeratorOrOwner, IsOwner
 
 class CourseViewSet(viewsets.ModelViewSet):
     queryset = Course.objects.all()
@@ -10,17 +10,12 @@ class CourseViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action == 'create':
-            # Создавать могут только аутентифицированные, но не модераторы
-            permission_classes = [IsAuthenticated, ~IsModerator]
+            return [IsAuthenticated(), IsNotModerator()]
         elif self.action in ['update', 'partial_update', 'retrieve', 'list']:
-            # Просматривать и редактировать могут модераторы ИЛИ владельцы (на уровне объекта)
-            permission_classes = [IsAuthenticated, IsModerator | IsOwner]
+            return [IsAuthenticated(), IsModeratorOrOwner()]
         elif self.action == 'destroy':
-            # Удалять могут только владельцы (не модераторы)
-            permission_classes = [IsAuthenticated, IsOwner]
-        else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
+            return [IsAuthenticated(), IsOwner()]
+        return [IsAuthenticated()]
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
@@ -32,9 +27,7 @@ class LessonListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method == 'POST':
-
-            return [IsAuthenticated(), ~IsModerator()]
-
+            return [IsAuthenticated(), IsNotModerator()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
@@ -53,18 +46,5 @@ class LessonRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method == 'DELETE':
-            # Удалять могут только владельцы (не модераторы)
             return [IsAuthenticated(), IsOwner()]
-        elif self.request.method in ['PUT', 'PATCH']:
-            # Редактировать могут модераторы или владелец
-            return [IsAuthenticated(), IsModerator() | IsOwner()]
-        else:  # GET
-            # Просматривать могут модераторы или владелец
-            return [IsAuthenticated(), IsModerator() | IsOwner()]
-
-    def get_queryset(self):
-        # Для детального просмотра также фильтруем, чтобы соблюсти права на уровне queryset
-        user = self.request.user
-        if user.groups.filter(name='Moderators').exists():
-            return Lesson.objects.all()
-        return Lesson.objects.filter(owner=user)
+        return [IsAuthenticated(), IsModeratorOrOwner()]

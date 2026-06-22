@@ -15,20 +15,35 @@ class Command(BaseCommand):
             user.set_password('testpass123')
             user.save()
             self.stdout.write(f'Создан пользователь {user.email}')
+        else:
+            self.stdout.write(f'Пользователь {user.email} уже существует')
 
-        # Создаём курс и урок
-        course, _ = Course.objects.get_or_create(
+        # Создаём курс и урок с указанием владельца
+        course, course_created = Course.objects.get_or_create(
             title='Основы Python',
-            description='Тестовый курс'
+            defaults={
+                'description': 'Тестовый курс',
+                'owner': user
+            }
         )
-        lesson, _ = Lesson.objects.get_or_create(
+        if course_created:
+            self.stdout.write(f'Создан курс {course.title}')
+        else:
+            self.stdout.write(f'Курс {course.title} уже существует')
+
+        lesson, lesson_created = Lesson.objects.get_or_create(
             title='Установка Python',
             course=course,
             defaults={
                 'description': 'Установка Python на Windows',
-                'video_link': 'https://example.com/video1'
+                'video_link': 'https://example.com/video1',
+                'owner': user
             }
         )
+        if lesson_created:
+            self.stdout.write(f'Создан урок {lesson.title}')
+        else:
+            self.stdout.write(f'Урок {lesson.title} уже существует')
 
         # Создаём платежи
         Payment.objects.create(user=user, course=course, amount=5000, method='transfer')
