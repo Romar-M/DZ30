@@ -6,6 +6,7 @@ class Course(models.Model):
     preview = models.ImageField(upload_to='course_previews/', blank=True, null=True)
     description = models.TextField()
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='courses')
+    last_notification_sent = models.DateTimeField(null=True, blank=True, verbose_name='Последняя рассылка')
 
     def __str__(self):
         return self.title
