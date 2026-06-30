@@ -214,10 +214,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-db.sqlite3
 git remote add origin https://github.com/ваш_логин/CW4.git
 .idea/
-venv/
 *.pyc
-__pycache__/
 media/
+postgres_data/
+redis_data/
