@@ -23,9 +23,9 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - name: Install dependencies
@@ -55,30 +55,36 @@ jobs:
     needs: tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Setup SSH
-        uses: shimataro/ssh-key-action@v2
-        with:
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          known_hosts: ${{ secrets.SSH_HOST }}
-      - name: Deploy to server
+      - uses: actions/checkout@v5
+      - name: Setup SSH and deploy
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /home/deployer/app"
-          rsync -avz -e "ssh -o StrictHostKeyChecking=no" ./* ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deployer/app/
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" ./* ${SSH_USER}@${SSH_HOST}:/home/deployer/app/
+          ssh -i ~/.ssh/deploy_key ${SSH_USER}@${SSH_HOST} << 'ENDSSH'
             cd /home/deployer/app
-            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
+            echo "SECRET_KEY=$SECRET_KEY" > .env
             echo "DEBUG=False" >> .env
-            echo "ALLOWED_HOSTS=${{ secrets.SSH_HOST }}" >> .env
+            echo "ALLOWED_HOSTS=$SSH_HOST" >> .env
             echo "DB_NAME=lms_db" >> .env
             echo "DB_USER=postgres" >> .env
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_PASSWORD=$DB_PASSWORD" >> .env
             echo "DB_HOST=db" >> .env
             echo "DB_PORT=5432" >> .env
             echo "REDIS_URL=redis://redis:6379/0" >> .env
-            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
-            echo "STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}" >> .env
+            echo "STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY" >> .env
+            echo "STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" >> .env
             docker compose down
             docker compose build --no-cache
             docker compose up -d
-          EOF
+          ENDSSH
