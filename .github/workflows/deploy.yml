@@ -56,7 +56,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - name: Setup SSH and deploy
+      - name: Deploy to server
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
@@ -66,25 +66,39 @@ jobs:
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
         run: |
+          # Проверка наличия секретов
+          if [ -z "$SSH_PRIVATE_KEY" ]; then echo "ERROR: SSH_PRIVATE_KEY is empty"; exit 1; fi
+          if [ -z "$SSH_HOST" ]; then echo "ERROR: SSH_HOST is empty"; exit 1; fi
+          
+          # Настройка SSH
           mkdir -p ~/.ssh
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
-          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" ./* ${SSH_USER}@${SSH_HOST}:/home/deployer/app/
-          ssh -i ~/.ssh/deploy_key ${SSH_USER}@${SSH_HOST} << 'ENDSSH'
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          
+          # Проверка подключения
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes ${SSH_USER}@${SSH_HOST} "echo 'SSH OK'"
+          
+          # Синхронизация файлов
+          rsync -avz -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" --exclude='.git' --exclude='venv' --exclude='__pycache__' ./ ${SSH_USER}@${SSH_HOST}:/home/deployer/app/
+          
+          # Создание .env на сервере и перезапуск контейнеров
+          ssh -i ~/.ssh/deploy_key ${SSH_USER}@${SSH_HOST} "
             cd /home/deployer/app
-            echo "SECRET_KEY=$SECRET_KEY" > .env
-            echo "DEBUG=False" >> .env
-            echo "ALLOWED_HOSTS=$SSH_HOST" >> .env
-            echo "DB_NAME=lms_db" >> .env
-            echo "DB_USER=postgres" >> .env
-            echo "DB_PASSWORD=$DB_PASSWORD" >> .env
-            echo "DB_HOST=db" >> .env
-            echo "DB_PORT=5432" >> .env
-            echo "REDIS_URL=redis://redis:6379/0" >> .env
-            echo "STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY" >> .env
-            echo "STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY" >> .env
+            cat > .env << EOF
+          SECRET_KEY=$SECRET_KEY
+          DEBUG=False
+          ALLOWED_HOSTS=$SSH_HOST
+          DB_NAME=lms_db
+          DB_USER=postgres
+          DB_PASSWORD=$DB_PASSWORD
+          DB_HOST=db
+          DB_PORT=5432
+          REDIS_URL=redis://redis:6379/0
+          STRIPE_SECRET_KEY=$STRIPE_SECRET_KEY
+          STRIPE_PUBLISHABLE_KEY=$STRIPE_PUBLISHABLE_KEY
+          EOF
             docker compose down
             docker compose build --no-cache
             docker compose up -d
-          ENDSSH
+          "
