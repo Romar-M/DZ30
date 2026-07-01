@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Установка зависимостей
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir gunicorn
 
 # Копирование остального кода
 COPY . .
