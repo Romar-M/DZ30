@@ -26,7 +26,7 @@ REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 
 INSTALLED_APPS = [
@@ -138,8 +138,8 @@ STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 
 STATIC_URL = "static/"
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 CELERY_BEAT_SCHEDULE = {
     'deactivate-inactive-users': {
         'task': 'users.tasks.deactivate_inactive_users',

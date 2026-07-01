@@ -1,0 +1,14 @@
+venv
+.git
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-wheel-metadata
+*.egg-info
+media
+db.sqlite3
+.env
+postgres_data
+redis_data
