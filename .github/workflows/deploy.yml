@@ -1,0 +1,84 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: lms_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage flake8
+      - name: Lint with flake8
+        run: flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+      - name: Run tests
+        env:
+          SECRET_KEY: test-secret-key
+          DEBUG: True
+          DB_NAME: lms_test
+          DB_USER: postgres
+          DB_PASSWORD: postgres
+          DB_HOST: localhost
+          DB_PORT: 5432
+          REDIS_URL: redis://localhost:6379/0
+          STRIPE_SECRET_KEY: sk_test_dummy
+          STRIPE_PUBLISHABLE_KEY: pk_test_dummy
+        run: |
+          coverage run manage.py test
+          coverage report
+
+  deploy:
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup SSH
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: ${{ secrets.SSH_HOST }}
+      - name: Deploy to server
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "mkdir -p /home/deployer/app"
+          rsync -avz -e "ssh -o StrictHostKeyChecking=no" ./* ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/deployer/app/
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd /home/deployer/app
+            echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
+            echo "DEBUG=False" >> .env
+            echo "ALLOWED_HOSTS=${{ secrets.SSH_HOST }}" >> .env
+            echo "DB_NAME=lms_db" >> .env
+            echo "DB_USER=postgres" >> .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            echo "DB_HOST=db" >> .env
+            echo "DB_PORT=5432" >> .env
+            echo "REDIS_URL=redis://redis:6379/0" >> .env
+            echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}" >> .env
+            echo "STRIPE_PUBLISHABLE_KEY=${{ secrets.STRIPE_PUBLISHABLE_KEY }}" >> .env
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
+          EOF
